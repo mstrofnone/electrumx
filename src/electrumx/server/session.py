@@ -1454,21 +1454,14 @@ class ElectrumX(SessionBase):
 
         max_size = self.MAX_CHUNK_SIZE
         count = min(count, max_size)
-        headers, count = await self.db.read_headers(start_height, count)
-        result = {'count': count, 'max': max_size, 'headers': []}
+        headers = await self.db.read_headers_array(start_height, count)
+        count = len(headers)
+        result = {'count': count, 'max': max_size,
+                  'headers': [header.hex() for header in headers]}
         if count and cp_height:
             cost += 1.0
             last_height = start_height + count - 1
             result.update(await self._merkle_proof(cp_height, last_height))
-
-        cursor = 0
-        height = 0
-        while cursor < len(headers):
-            next_cursor = self.db.header_offset(height + 1)
-            header = headers[cursor:next_cursor]
-            result['headers'].append(header.hex())
-            cursor = next_cursor
-            height += 1
 
         self.bump_cost(cost)
         return result

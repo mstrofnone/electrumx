@@ -446,6 +446,17 @@ class DB:
 
         return await run_in_thread(read_headers)
 
+    async def read_headers_array(self, start_height, count):
+        '''Preserves variable-length header boundaries at every starting height.'''
+        headers, count = await self.read_headers(start_height, count)
+        cursor = 0
+        result = []
+        for height in range(start_height, start_height + count):
+            next_cursor = cursor + self.header_len(height)
+            result.append(headers[cursor:next_cursor])
+            cursor = next_cursor
+        return result
+
     def fs_tx_hash(self, tx_num):
         '''Return a pair (tx_hash, tx_height) for the given tx number.
 
@@ -477,17 +488,11 @@ class DB:
         return await run_in_thread(self.fs_tx_hashes_at_blockheight, block_height)
 
     async def fs_block_hashes(self, height, count):
-        headers_concat, headers_count = await self.read_headers(height, count)
+        headers = await self.read_headers_array(height, count)
+        headers_count = len(headers)
         if headers_count != count:
             raise self.DBError(f'only got {headers_count:,d} headers starting '
                                f'at {height:,d}, not {count:,d}')
-        offset = 0
-        headers = []
-        for n in range(count):
-            hlen = self.header_len(height + n)
-            headers.append(headers_concat[offset:offset + hlen])
-            offset += hlen
-
         return [self.coin.header_hash(header) for header in headers]
 
     async def limited_history(self, hashX, *, limit=1000):
